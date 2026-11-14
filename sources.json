@@ -3,7 +3,7 @@
   "stremio_addons": [
     {
       "id": "hdhub",
-      "name": "HDHub",
+      "name": "HDHub (Addon)",
       "manifest_url": "https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjEwODBwLDcyMHAsNDgwcCIsInNvcnQiOiJkZXNjIiwiY2F0YWxvZ3MiOiIifQ/manifest.json",
       "enabled": true,
       "priority": 1,
@@ -11,7 +11,7 @@
     },
     {
       "id": "plaviohd",
-      "name": "PlavioHD",
+      "name": "PlavioHD (Addon)",
       "manifest_url": "https://hd.plavio.site/c/eyJwcm92aWRlcnMiOlsiSERIdWI0dSIsIkNpbmV6byIsIlZlZ2Ftb3ZpZXMiLCJNb3ZpZXNIdW50IiwiNEtIREh1YiIsIk9uZVRvdWNoVFYiLCJWaWRyb2NrIiwiU3BhY2VEb20iLCJXYXkyTW92aWVzIiwiRmxpeE5lc3QiLCJIREh1YiIsIk1vdmllczR1IiwiQ05DVmVyc2UiLCJNb3ZpZUJveCIsIkRlZXBGbGl4Il0sInFzZXQiOlsiMTA4MHAiLCI3MjBwIiwiNDgwcCIsIjM2MHAiLCJIRFRTIiwiQ0FNIiwiSERSaXAiXSwiY3R5cGVzIjpbIm1vdmllIiwid2Vic2VyaWVzIiwidHYiLCJhbmltZSJdLCJsYW5nUGljayI6WyJIaW5kaSIsIkVuZ2xpc2giLCJQdW5qYWJpIiwiQmVuZ2FsaSIsIlRhbWlsIiwiVGVsdWd1IiwiTWFsYXlhbGFtIiwiS2FubmFkYSIsIk1hcmF0aGkiLCJEdWFsIEF1ZGlvIiwiTXVsdGkgQXVkaW8iLCJBcmFiaWMiLCJTcGFuaXNoIiwiRnJlbmNoIiwiR2VybWFuIiwiSXRhbGlhbiIsIlBvcnR1Z3Vlc2UiLCJSdXNzaWFuIiwiSmFwYW5lc2UiLCJJbmRvbmVzaWFuIiwiRHV0Y2giLCJIdW5nYXJpYW4iXSwic29ydE5ldyI6InNpemVRdWFsaXR5IiwiaW5jSGRyIjp0cnVlLCJpbmNIZXZjIjp0cnVlLCJpbmNEdWFsIjp0cnVlLCJpbmNNdWx0aSI6dHJ1ZX0/manifest.json",
       "enabled": true,
       "priority": 2,
@@ -19,7 +19,7 @@
     },
     {
       "id": "penguplay",
-      "name": "PenguPlay",
+      "name": "PenguPlay (Addon)",
       "manifest_url": "https://pengu.uk/%7B%22auth_token%22%3A%22p30MBIC3MSN4Dbh5ZGDeVyGUzMoFFJUBEL4FNv36DWY%22%7D/manifest.json",
       "enabled": true,
       "priority": 3,
@@ -27,7 +27,7 @@
     },
     {
       "id": "notorrent",
-      "name": "NoTorrent",
+      "name": "NoTorrent (Addon)",
       "manifest_url": "https://addon.notorrent2.workers.dev/manifest.json",
       "enabled": true,
       "priority": 4,
@@ -37,7 +37,7 @@
   "js_extractors": [
     {
       "id": "hianime",
-      "name": "HiAnime",
+      "name": "HiAnime (Scraper)",
       "script_url": "hianime.js",
       "interface": "zangetsu",
       "enabled": true,
@@ -49,7 +49,7 @@
     },
     {
       "id": "gogo",
-      "name": "AniGoGo",
+      "name": "AniGoGo (Scraper)",
       "script_url": "gogo.js",
       "interface": "miru",
       "enabled": true,
@@ -61,7 +61,7 @@
     },
     {
       "id": "hdhub",
-      "name": "HDHub4u",
+      "name": "HDHub4u (Scraper)",
       "script_url": "hdhub.js",
       "interface": "zangetsu",
       "enabled": true,
@@ -70,7 +70,7 @@
     },
     {
       "id": "4khdhub",
-      "name": "4K HDHub",
+      "name": "4K HDHub (Scraper)",
       "script_url": "4khdhub.js",
       "interface": "zangetsu",
       "enabled": true,
