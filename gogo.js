@@ -10,7 +10,7 @@
 // @webSite      https://animex.one
 // ==/MiruExtension==
 
-export default class extends Extension {
+class AniGoGo extends Extension {
   async req(url, options = {}) {
     const headers = {
       "User-Agent":
@@ -218,3 +218,47 @@ export default class extends Extension {
     };
   }
 }
+
+var __gogo = new AniGoGo();
+
+async function scrape(media) {
+  try {
+    var title = (media && media.title) || '';
+    if (!title) return [];
+    var episode = (media && media.episode) || 1;
+    var ext = __gogo;
+
+    var searchResults = await ext.search(title, 1);
+    if (!searchResults || !searchResults.length) return [];
+
+    var card = searchResults[0];
+    var animeId = card.url || card.id;
+    var detail = await ext.detail(animeId);
+    var epList = (detail && detail.episodes && detail.episodes[0] && detail.episodes[0].urls) || [];
+    if (!epList.length) return [];
+
+    var epTarget = null;
+    for (var i = 0; i < epList.length; i++) {
+      var ep = epList[i];
+      if (String(ep.url || '').endsWith(';' + episode) || String(ep.name || '').indexOf(' ' + episode) !== -1) {
+        epTarget = ep;
+        break;
+      }
+    }
+    if (!epTarget) epTarget = epList[0];
+
+    var res = await ext.watch(epTarget.url);
+    if (res && res.url) {
+      return [{
+        url: res.url,
+        quality: 'Auto',
+        headers: res.headers || {},
+        subtitles: res.subtitles || []
+      }];
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+

@@ -541,3 +541,59 @@ function getVideoSources(episodeUrl) {
     return out;
   });
 }
+
+async function scrape(media) {
+  try {
+    var title = (media && media.title) || '';
+    if (!title) return [];
+    var season = (media && media.season) || 1;
+    var episode = (media && media.episode) || 1;
+    var mediaType = (media && media.mediaType) || 'movie';
+    var year = media && media.year;
+
+    var searchResults = await search(title, 1);
+    if (!searchResults || !searchResults.length) return [];
+
+    var card = searchResults[0];
+    if (mediaType === 'tv' && season && searchResults.length > 1) {
+      var sRe = new RegExp('season\\s*' + season + '|s0*' + season + '\\b', 'i');
+      for (var i = 0; i < searchResults.length; i++) {
+        var c = searchResults[i];
+        var text = (c.title || '') + ' ' + (c.id || '') + ' ' + (c.url || '');
+        if (sRe.test(text)) { card = c; break; }
+      }
+    } else if (year && searchResults.length > 1) {
+      for (var i = 0; i < searchResults.length; i++) {
+        var c = searchResults[i];
+        var text = (c.title || '') + ' ' + (c.id || '') + ' ' + (c.url || '');
+        if (text.indexOf(String(year)) !== -1) { card = c; break; }
+      }
+    }
+
+    var detail = await getDetail(card.id || card.url);
+    var episodes = (detail && detail.episodes) || [];
+    if (!episodes.length) return [];
+
+    var epItem = null;
+    if (mediaType === 'movie') {
+      epItem = episodes[0];
+    } else {
+      for (var j = 0; j < episodes.length; j++) {
+        var e = episodes[j];
+        if (e.number == episode || e.num == episode || (e.id && String(e.id).endsWith(':' + episode))) {
+          epItem = e;
+          break;
+        }
+      }
+      if (!epItem) epItem = episodes[0];
+    }
+    if (!epItem) return [];
+
+    var epUrl = epItem.url || epItem.id;
+    var sources = await getVideoSources(epUrl);
+    return sources || [];
+  } catch (e) {
+    return [];
+  }
+}
+
