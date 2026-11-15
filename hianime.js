@@ -514,3 +514,55 @@ function _streams(file, hdrs, cat, subs) {
       return out;
     }).catch(function () { return [mk(file, 'auto')]; });
 }
+
+
+async function scrape(media) {
+  try {
+    var query = (media && media.title) || '';
+    if (!query) return [];
+    var year = media && media.year;
+    var mediaType = (media && media.mediaType) || 'movie';
+    var episode = (media && media.episode) || 1;
+
+    var searchResults = await search(query, 1);
+    if (!searchResults || !searchResults.length) return [];
+
+    var card = searchResults[0];
+    if (year && searchResults.length > 1) {
+      for (var i = 0; i < searchResults.length; i++) {
+        var c = searchResults[i];
+        var text = (c.title || '') + ' ' + (c.id || '') + ' ' + (c.url || '');
+        if (text.indexOf(String(year)) !== -1) {
+          card = c;
+          break;
+        }
+      }
+    }
+
+    var targetUrl = card.url || card.id || card.href;
+    var detail = await getDetail(targetUrl);
+    var episodes = (detail && detail.episodes) || [];
+    if (!episodes.length) return [];
+
+    var epItem = null;
+    if (mediaType === 'movie') {
+      epItem = episodes[0];
+    } else {
+      for (var j = 0; j < episodes.length; j++) {
+        var e = episodes[j];
+        if (e.num == episode || e.number == episode || (e.id && String(e.id).endsWith('/' + episode))) {
+          epItem = e;
+          break;
+        }
+      }
+      if (!epItem) epItem = episodes[0];
+    }
+    if (!epItem) return [];
+
+    var epUrl = epItem.url || epItem.id || epItem.href || epItem;
+    var sources = await getVideoSources(epUrl);
+    return sources || [];
+  } catch (e) {
+    return [];
+  }
+}
