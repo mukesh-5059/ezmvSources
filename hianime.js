@@ -128,17 +128,26 @@ function _cards(seg) {
 // rather than a repeat of page 1.
 function search(query, page, opts) {
   var q = String(query || '').trim();
+  console.log('[HiAnime][search] Searching keyword="' + q + '"');
   if (q.length < 1 || (page && page > 1)) return Promise.resolve([]);
   return _get(SITE + '/search?keyword=' + encodeURIComponent(q), SITE + '/')
     .then(function (html) {
       // Results only: the page's Top 10 sidebar is built from the same card
       // markup and would otherwise ride along as matches.
       var i = html.indexOf('film_list-wrap');
-      if (i < 0) return [];
+      if (i < 0) {
+        console.warn('[HiAnime][search] No film_list-wrap in search HTML');
+        return [];
+      }
       var j = html.indexOf('</section', i);
-      return _cards(html.substring(i, j < 0 ? html.length : j));
+      var cards = _cards(html.substring(i, j < 0 ? html.length : j));
+      console.log('[HiAnime][search] Found ' + cards.length + ' match(es)');
+      return cards;
     })
-    .catch(function () { return []; });
+    .catch(function (err) {
+      console.error('[HiAnime][search] Error fetching search:', err && err.message || err);
+      return [];
+    });
 }
 
 // ── Home ────────────────────────────────────────────────────────────────────
@@ -371,19 +380,25 @@ function getVideoSources(episodeUrl) {
   var parts = String(episodeUrl).replace('hianime://', '').split('/');
   var cat = (parts[0] === 'dub') ? 'dub' : 'sub';
   var epId = parts[1] || '';
+  console.log('[HiAnime][getVideoSources] Loading sources for epUrl="' + episodeUrl + '" (cat=' + cat + ', epId=' + epId + ')');
   // Anything else is a url from the old API-backed chain, whose player links
   // died with that host — nothing to resolve, so say so instead of guessing.
-  if (!/^\d+$/.test(epId)) return Promise.reject(new Error('HiAnime: no episode id'));
+  if (!/^\d+$/.test(epId)) {
+    console.warn('[HiAnime][getVideoSources] Invalid episode id: "' + epId + '"');
+    return Promise.reject(new Error('HiAnime: no episode id'));
+  }
 
   return _ajax('episode/servers?episodeId=' + encodeURIComponent(epId), SITE + '/watch/')
     .then(function (html) {
       var servers = _parseServers(html), want = [];
+      console.log('[HiAnime][getVideoSources] Total servers parsed: ' + servers.length);
       for (var i = 0; i < servers.length; i++) {
         var t = servers[i].type;
         // hsub is the same audio as sub with hardcoded signs, so it stands in.
         var ok = (cat === 'dub') ? (t === 'dub') : (t === 'sub' || t === 'hsub');
         if (ok) want.push(servers[i]);
       }
+      console.log('[HiAnime][getVideoSources] Candidate servers for ' + cat + ': ' + want.length);
       // No fallback to the other cut: the file a host hands back is only ever
       // labelled by what we asked for, so standing in a sub pack for a missing
       // dub would play Japanese audio under a Dub badge.
@@ -518,15 +533,26 @@ function _streams(file, hdrs, cat, subs) {
 
 async function scrape(media) {
   try {
-    var title = (media && media.title) || '';
-    if (!title) return [];
+    var rawTitle = (media && media.title) || '';
+    var title = rawTitle
+      .replace(/\s+s\d+e\d+.*$/i, '')
+      .replace(/\s+season\s*\d+.*$/i, '')
+      .trim() || rawTitle;
     var season = (media && media.season) || 1;
     var episode = (media && media.episode) || 1;
     var mediaType = (media && media.mediaType) || 'movie';
     var year = media && media.year;
+    console.log('[HiAnime][scrape] Starting scrape for title="' + title + '" (season=' + season + ', ep=' + episode + ', type=' + mediaType + ')');
+    if (!title) {
+      console.warn('[HiAnime][scrape] Title is empty');
+      return [];
+    }
 
     var searchResults = await search(title, 1);
-    if (!searchResults || !searchResults.length) return [];
+    if (!searchResults || !searchResults.length) {
+      console.warn('[HiAnime][scrape] 0 search results found for "' + title + '"');
+      return [];
+    }
 
     var card = searchResults[0];
     if (mediaType === 'tv' && season && searchResults.length > 1) {
@@ -543,10 +569,15 @@ async function scrape(media) {
         if (text.indexOf(String(year)) !== -1) { card = c; break; }
       }
     }
+    console.log('[HiAnime][scrape] Selected card: "' + card.title + '" (id=' + card.id + ')');
 
     var detail = await getDetail(card.id || card.url);
     var episodes = (detail && detail.episodes) || [];
-    if (!episodes.length) return [];
+    console.log('[HiAnime][scrape] Found ' + episodes.length + ' episode(s) in details');
+    if (!episodes.length) {
+      console.warn('[HiAnime][scrape] No episodes in details for ' + card.id);
+      return [];
+    }
 
     var epItem = null;
     if (mediaType === 'movie') {
@@ -559,14 +590,23 @@ async function scrape(media) {
           break;
         }
       }
-      if (!epItem) epItem = episodes[0];
+      if (!epItem) {
+        console.log('[HiAnime][scrape] Episode ' + episode + ' not matched exactly; defaulting to first episode');
+        epItem = episodes[0];
+      }
     }
-    if (!epItem) return [];
+    if (!epItem) {
+      console.warn('[HiAnime][scrape] No valid episode target');
+      return [];
+    }
+    console.log('[HiAnime][scrape] Target episode: number=' + epItem.number + ' url=' + epItem.url + ' id=' + epItem.id);
 
     var epUrl = epItem.url || epItem.id;
     var sources = await getVideoSources(epUrl);
+    console.log('[HiAnime][scrape] Resolved ' + (sources ? sources.length : 0) + ' stream(s)');
     return sources || [];
   } catch (e) {
+    console.error('[HiAnime][scrape] Error during scrape: ' + (e && e.stack || e));
     return [];
   }
 }

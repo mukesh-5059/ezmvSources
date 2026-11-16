@@ -518,15 +518,26 @@ function getVideoSources(episodeUrl) {
 
 async function scrape(media) {
   try {
-    var title = (media && media.title) || '';
-    if (!title) return [];
+    var rawTitle = (media && media.title) || '';
+    var title = rawTitle
+      .replace(/\s+s\d+e\d+.*$/i, '')
+      .replace(/\s+season\s*\d+.*$/i, '')
+      .trim() || rawTitle;
     var season = (media && media.season) || 1;
     var episode = (media && media.episode) || 1;
     var mediaType = (media && media.mediaType) || 'movie';
     var year = media && media.year;
+    console.log('[4K HDHub][scrape] Starting scrape for title="' + title + '" (season=' + season + ', ep=' + episode + ', type=' + mediaType + ')');
+    if (!title) {
+      console.warn('[4K HDHub][scrape] Title is empty');
+      return [];
+    }
 
     var searchResults = await search(title, 1);
-    if (!searchResults || !searchResults.length) return [];
+    if (!searchResults || !searchResults.length) {
+      console.warn('[4K HDHub][scrape] 0 search results found for "' + title + '"');
+      return [];
+    }
 
     var card = searchResults[0];
     if (mediaType === 'tv' && season && searchResults.length > 1) {
@@ -543,10 +554,15 @@ async function scrape(media) {
         if (text.indexOf(String(year)) !== -1) { card = c; break; }
       }
     }
+    console.log('[4K HDHub][scrape] Selected card: "' + card.title + '" (id=' + card.id + ')');
 
     var detail = await getDetail(card.id || card.url);
     var episodes = (detail && detail.episodes) || [];
-    if (!episodes.length) return [];
+    console.log('[4K HDHub][scrape] Found ' + episodes.length + ' episode(s) in details');
+    if (!episodes.length) {
+      console.warn('[4K HDHub][scrape] No episodes in details for ' + card.id);
+      return [];
+    }
 
     var epItem = null;
     if (mediaType === 'movie') {
@@ -559,14 +575,23 @@ async function scrape(media) {
           break;
         }
       }
-      if (!epItem) epItem = episodes[0];
+      if (!epItem) {
+        console.log('[4K HDHub][scrape] Episode ' + episode + ' not matched exactly; defaulting to first episode');
+        epItem = episodes[0];
+      }
     }
-    if (!epItem) return [];
+    if (!epItem) {
+      console.warn('[4K HDHub][scrape] No valid episode target');
+      return [];
+    }
+    console.log('[4K HDHub][scrape] Target episode: number=' + epItem.number + ' url=' + epItem.url);
 
     var epUrl = epItem.url || epItem.id;
     var sources = await getVideoSources(epUrl);
+    console.log('[4K HDHub][scrape] Resolved ' + (sources ? sources.length : 0) + ' stream(s)');
     return sources || [];
   } catch (e) {
+    console.error('[4K HDHub][scrape] Error during scrape: ' + (e && e.stack || e));
     return [];
   }
 }
