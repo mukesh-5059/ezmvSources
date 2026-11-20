@@ -50,22 +50,6 @@ function getInfo() {
   };
 }
 
-async function latest(page) {
-  var p = page || 1;
-  var res = await _req('https://graphql.animex.one/api/recent?page=' + p);
-  var results = (res && res.results) || [];
-  return results.map(function (item) {
-    var title = item.titleEnglish || item.titleRomaji || item.titleNative || '';
-    var cover = (item.coverImage && (item.coverImage.extraLarge || item.coverImage.large)) || '';
-    return {
-      id: item.id.toString(),
-      title: title,
-      url: item.id.toString(),
-      cover: cover
-    };
-  });
-}
-
 async function search(kw, page) {
   console.log('[AniGoGo][search] Searching keyword="' + kw + '"');
   var query = `
@@ -73,10 +57,8 @@ async function search(kw, page) {
       catalogAnime(filter: { query: $query }, limit: $limit) {
         items {
           id
-          anilistId
           titleEnglish
           titleRomaji
-          coverImage
         }
       }
     }
@@ -97,13 +79,10 @@ async function search(kw, page) {
   console.log('[AniGoGo][search] Found ' + items.length + ' item(s)');
   return items.map(function (item) {
     var title = item.titleEnglish || item.titleRomaji || item.id || 'N/A';
-    var coverObj = typeof item.coverImage === 'string' ? JSON.parse(item.coverImage || '{}') : (item.coverImage || {});
-    var cover = coverObj.extraLarge || coverObj.large || coverObj.medium || '';
     return {
       id: item.id.toString(),
       title: title,
-      url: item.id.toString(),
-      cover: cover
+      url: item.id.toString()
     };
   });
 }
@@ -111,41 +90,6 @@ async function search(kw, page) {
 async function getDetail(url) {
   var animeId = String(url);
   console.log('[AniGoGo][getDetail] Loading details for animeId="' + animeId + '"');
-  var title = animeId;
-  var cover = '';
-  var desc = '';
-
-  try {
-    var query = `
-      query GetAnime($id: String!) {
-        anime(id: $id) {
-          id
-          titleEnglish
-          titleRomaji
-          coverImage
-          description
-        }
-      }
-    `;
-    var infoRes = await _req('https://graphql.animex.one/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: {
-        query: query,
-        variables: { id: animeId }
-      }
-    });
-    var item = infoRes && infoRes.data && infoRes.data.anime;
-    if (item) {
-      title = item.titleEnglish || item.titleRomaji || animeId;
-      var coverObj = typeof item.coverImage === 'string' ? JSON.parse(item.coverImage || '{}') : (item.coverImage || {});
-      cover = coverObj.extraLarge || coverObj.large || coverObj.medium || '';
-      desc = item.description || '';
-    }
-  } catch (e) {
-    console.warn('[AniGoGo][getDetail] GraphQL anime query error: ' + (e && e.message || e));
-  }
-
   var episodes = [];
   try {
     var epRes = await _req('https://pp.animex.one/rest/api/episodes?id=' + encodeURIComponent(animeId));
@@ -179,11 +123,6 @@ async function getDetail(url) {
 
   return {
     id: animeId,
-    title: title,
-    cover: cover,
-    description: desc,
-    type: 'anime',
-    sourceId: SOURCE_ID,
     episodes: episodes
   };
 }
@@ -241,11 +180,6 @@ async function getVideoSources(episodeUrl) {
     subtitles: subtitles
   }];
 }
-
-// Aliases for backward compatibility
-var detail = getDetail;
-var watch = getVideoSources;
-var __gogo = { search: search, detail: getDetail, watch: getVideoSources };
 
 async function scrape(media) {
   try {

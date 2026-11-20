@@ -76,23 +76,11 @@ function _b64(s) {
   } catch (e) { return ''; }
 }
 function _text(s) { return htmlText(String(s || '').replace(/<[^>]*>/g, '')).replace(/^\s+|\s+$/g, ''); }
-function _year(s) { var m = String(s || '').match(/(19|20)\d{2}/); return m ? m[0] : null; }
-// Slug = the last path segment, with or without the /watch/ prefix, and always
-// ending in the anime id (…-86). Genre/studio links have no trailing id, so
-// they can't be mistaken for a title.
 function _slug(chunk) {
   var m = String(chunk || '').match(/href="[^"]*\/(?:watch\/)?([a-z0-9][a-z0-9-]*-\d+)(?:\?[^"]*)?"/i);
   return m ? m[1] : null;
 }
 function _animeId(slug) { var m = String(slug || '').match(/-(\d+)$/); return m ? m[1] : null; }
-// Sub/dub badge counts. The <i> icon inside the badge carries a class with a
-// digit in it ("mr-1"), so the tags have to go before reading the number.
-function _tick(chunk, name) {
-  var m = String(chunk || '').match(new RegExp('tick-' + name + '"[^>]*>([\\s\\S]*?)<\\/div>'));
-  if (!m) return 0;
-  var n = m[1].replace(/<[^>]*>/g, '').match(/\d+/);
-  return n ? parseInt(n[0], 10) : 0;
-}
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 // The three card shapes on the site (grid flw-item, home spotlight deslide-item,
@@ -102,9 +90,6 @@ function _tick(chunk, name) {
 // `class="item"` (the az-list, the login menu).
 function _cards(seg) {
   var out = [], seen = {};
-  // Splitting on the card containers alone leaves the last card running to the
-  // end of whatever was passed in, so it reads its badges off the sidebar or
-  // the footer — end the run at the enclosing section too.
   var chunks = String(seg || '').split(/class="(?:flw-item|deslide-item|item)[\s"]|<\/section|<footer/);
   for (var i = 1; i < chunks.length; i++) {
     var c = chunks[i];
@@ -115,25 +100,18 @@ function _cards(seg) {
       || (c.match(/title="([^"]+)"/) || [])[1];
     if (!title) continue;
     seen[slug] = 1;
-    out.push({ id: slug, title: _text(title), englishTitle: _text(title),
-      cover: (img.match(/src="([^"]+)"/i) || [])[1] || null,
-      url: slug, type: 'anime', sourceId: SOURCE_ID,
-      subCount: _tick(c, 'sub'), dubCount: _tick(c, 'dub') });
+    out.push({ id: slug, title: _text(title), url: slug });
   }
   return out;
 }
 
 // ── Search ──────────────────────────────────────────────────────────────────
-// One page of results, no pagination links in the markup — page 2+ is empty
-// rather than a repeat of page 1.
 function search(query, page, opts) {
   var q = String(query || '').trim();
   console.log('[HiAnime][search] Searching keyword="' + q + '"');
   if (q.length < 1 || (page && page > 1)) return Promise.resolve([]);
   return _get(SITE + '/search?keyword=' + encodeURIComponent(q), SITE + '/')
     .then(function (html) {
-      // Results only: the page's Top 10 sidebar is built from the same card
-      // markup and would otherwise ride along as matches.
       var i = html.indexOf('film_list-wrap');
       if (i < 0) {
         console.warn('[HiAnime][search] No film_list-wrap in search HTML');
@@ -150,139 +128,8 @@ function search(query, page, opts) {
     });
 }
 
-// ── Home ────────────────────────────────────────────────────────────────────
-// Sections are marked by their <h2 class="cat-heading">; slice each from its
-// heading to the next one. The spotlight carousel sits above the first heading.
-function getHome(opts) {
-  var want = { 'Trending': 1, 'Latest Episode': 1, 'New On HiAnime': 1, 'Top Upcoming': 1 };
-  return _get(SITE + '/home', SITE + '/').then(function (html) {
-    var marks = [], re = /<h2 class="cat-heading[^"]*">\s*([^<]+?)\s*<\/h2>/g, m;
-    while ((m = re.exec(html)) !== null) marks.push({ name: m[1], at: m.index });
-    var rows = [];
-    var spot = _cards(marks.length ? html.substring(0, marks[0].at) : '');
-    if (spot.length) rows.push({ title: 'Spotlight', items: spot });
-    for (var i = 0; i < marks.length; i++) {
-      if (!want[marks[i].name]) continue;
-      var end = (i + 1 < marks.length) ? marks[i + 1].at : html.length;
-      var items = _cards(html.substring(marks[i].at, end));
-      if (items.length) rows.push({ title: marks[i].name, items: items });
-    }
-    return rows;
-  }).catch(function () { return []; });
-}
-
-// ── Detail + episodes ───────────────────────────────────────────────────────
-function _info(html, label) {
-  var m = String(html).match(new RegExp('item-head">' + label
-    + ':<\\/span>\\s*<span class="name">([\\s\\S]*?)<\\/span>'));
-  return m ? _text(m[1]) : null;
-}
-// Anchor texts out of one sidebar row. Bounded to that row's block: the page
-// also carries an all-genres widget and a promo blurb that links studios, and
-// scanning the whole document picks those up as the title's own.
-function _infoList(html, label, cap) {
-  var block = String(html).match(new RegExp('item-head">' + label
-    + ':<\\/span>([\\s\\S]*?)<\\/div>'));
-  if (!block) return [];
-  var out = [], seen = {}, m, re = /<a\b[^>]*>\s*([^<]+?)\s*</g;
-  while ((m = re.exec(block[1])) !== null && out.length < cap) {
-    var t = _text(m[1]);
-    if (t && !seen[t]) { seen[t] = 1; out.push(t); }
-  }
-  return out;
-}
-
-// The episode list gives no per-episode sub/dub flags — that only comes from the
-// server list — so the url carries the category the player asked for, then the
-// episode id and number. Category leads because the player's Sub/Dub toggle
-// rewrites that first segment in place.
 function _epUrl(cat, epId, num) { return 'hianime://' + cat + '/' + epId + '/' + num; }
 
-// Episode thumbnails (Kitsu, keyed by MAL id). The site exposes no per-episode
-// image, so without this the app falls back to the series poster. Kitsu covers
-// older anime too and is reachable where TMDB is ISP-blocked. Best-effort: any
-// failure just leaves the poster fallback.
-//
-// It does NOT get to be slow, though. getEpisodes() runs on the playback path,
-// so time spent here comes out of the app's per-source budget — see below.
-// Returns { episodeNumber: thumbnailUrl }.
-function _kitsuStills(malId, epCount) {
-  if (!malId) return Promise.resolve({});
-  var H = { 'Accept': 'application/vnd.api+json', 'User-Agent': UA };
-  var mapUrl = 'https://kitsu.io/api/edge/mappings?filter%5BexternalSite%5D=myanimelist/anime'
-    + '&filter%5BexternalId%5D=' + encodeURIComponent(malId) + '&include=item';
-  return fetch(mapUrl, { headers: H, timeoutMs: 8000 }).then(function (r) {
-    var j; try { j = JSON.parse(r.body || 'null'); } catch (e) { return {}; }
-    var inc = (j && j.included) || [];
-    var kid = null;
-    for (var i = 0; i < inc.length; i++) {
-      if (inc[i] && inc[i].type === 'anime') { kid = inc[i].id; break; }
-    }
-    if (!kid) return {};
-    // Pages are independent and the site already told us how many episodes
-    // there are, so ask for them at once instead of walking them.
-    //
-    // Walking cost nine round trips back to back — about five seconds on One
-    // Piece. getEpisodes() is on the playback path, so that alone spent most
-    // of the app's per-source budget before a stream was ever requested: the
-    // source got dropped as too slow and then benched for ten minutes, which
-    // looks exactly like a dead source. These are episode thumbnails.
-    var pages = Math.min(9, Math.max(1, Math.ceil((epCount || 20) / 20)));
-    var map = {};
-    function take(res) {
-      var eps = (res && res.data) || [];
-      for (var k = 0; k < eps.length; k++) {
-        var at = eps[k].attributes || {};
-        var th = at.thumbnail && at.thumbnail.original;
-        if (at.number != null && th) map[at.number] = th;
-      }
-    }
-    function fetchPage(i) {
-      return fetch('https://kitsu.io/api/edge/anime/' + kid +
-        '/episodes?page%5Blimit%5D=20&page%5Boffset%5D=' + (i * 20),
-        { headers: H, timeoutMs: 8000 })
-        .then(function (r2) {
-          try { return JSON.parse(r2.body || 'null'); } catch (e) { return null; }
-        })
-        .catch(function () { return null; });
-    }
-    // Three at a time. All nine at once is quicker still, but Kitsu rate-limits
-    // the burst and silently drops a third of the thumbnails; three keeps every
-    // page and is already a fraction of a second.
-    function wave(start) {
-      if (start >= pages) return Promise.resolve(map);
-      var batch = [];
-      for (var i = start; i < Math.min(start + 3, pages); i++) batch.push(fetchPage(i));
-      return Promise.all(batch).then(function (res) {
-        for (var j = 0; j < res.length; j++) take(res[j]);
-        return wave(start + 3);
-      });
-    }
-    return wave(0).catch(function () { return map; });
-  }).catch(function () { return {}; });
-}
-
-// No MAL id anywhere in the page markup, but the Zoko server's embed url is
-// built as /stream/mal/<malId>/<ep>/, so one server list for the first episode
-// hands it over. Drives tracker sync and the Kitsu stills above; best-effort,
-// a title without that server just gets a null id.
-function _malFromServers(epId, ref) {
-  return _ajax('episode/servers?episodeId=' + encodeURIComponent(epId), ref).then(function (html) {
-    var m, re = /data-hash="([^"]+)"/g;
-    while ((m = re.exec(html)) !== null) {
-      var hit = _b64(m[1]).match(/\/mal\/(\d+)\//);
-      if (hit) return parseInt(hit[1], 10);
-    }
-    return null;
-  }).catch(function () { return null; });
-}
-
-// Opening a show and then pressing play asks for the same detail twice: once
-// to draw the episode list, once inside getEpisodes() on the playback path.
-// The second pass refetched everything — the watch page, the episode list
-// (~1MB on a long-running show) and the whole Kitsu pass — which on a TV box
-// was enough on its own to blow the app's per-source budget and get the source
-// benched as dead. Five minutes is far shorter than the gap between episodes.
 var _detailCache = {};
 var _DETAIL_TTL = 300000;
 
@@ -292,8 +139,6 @@ function getDetail(url, opts) {
   var now = Date.now();
   if (hit && (now - hit.at) < _DETAIL_TTL) return Promise.resolve(hit.value);
   return _fetchDetail(url, opts).then(function (d) {
-    // Only a detail that actually carries episodes is worth keeping — caching
-    // a failed parse would pin the failure for the whole window.
     if (d && d.episodes && d.episodes.length) {
       _detailCache[key] = { at: Date.now(), value: d };
     }
@@ -306,48 +151,26 @@ function _fetchDetail(url, opts) {
   var cat = _mode(opts);
   var watchRef = SITE + '/watch/' + slug;
   return _get(SITE + '/' + encodeURIComponent(slug), SITE + '/').then(function (html) {
-    var stats = (html.match(/class="film-stats"([\s\S]{0,1500})/) || [])[1] || '';
     var title = _text((html.match(/<h2[^>]*class="[^"]*film-name[^"]*"[^>]*>([\s\S]*?)<\/h2>/) || [])[1]) || slug;
-    var base = {
-      id: slug, title: title, englishTitle: title, url: slug,
-      cover: (html.match(/class="anisc-poster"[\s\S]{0,400}?<img[^>]+src="([^"]+)"/) || [])[1] || null,
-      description: _text((html.match(/class="film-description[^"]*"[\s\S]{0,200}?<div class="text">([\s\S]*?)<\/div>/) || [])[1]),
-      status: _info(html, 'Status') || 'unknown',
-      genres: _infoList(html, 'Genres', 8), studios: _infoList(html, 'Studios', 4),
-      type: 'anime', sourceId: SOURCE_ID, episodes: [],
-      year: _year(_info(html, 'Aired')), malId: null,
-      subCount: _tick(stats, 'sub'), dubCount: _tick(stats, 'dub')
-    };
     var animeId = (html.match(/data-animeid="(\d+)"/) || [])[1] || _animeId(slug);
-    if (!animeId) return base;
+    if (!animeId) return { id: slug, title: title, url: slug, episodes: [] };
     return _ajax('episode/list/' + animeId, watchRef).then(function (lhtml) {
-      // The list ships every episode at once — the EPS: 001-100 dropdown only
-      // pages what's already there — so long runs need no extra requests.
-      var out = [], first = null, re = /<a\b([^>]*\bep-item\b[^>]*)>/g, m;
+      var out = [], re = /<a\b([^>]*\bep-item\b[^>]*)>/g, m;
       while ((m = re.exec(lhtml)) !== null) {
         var attrs = m[1];
         var epId = (attrs.match(/data-id="(\d+)"/) || [])[1];
         if (!epId) continue;
-        if (!first) first = epId;
         var n = parseInt((attrs.match(/data-number="(\d+)"/) || [])[1] || (out.length + 1), 10);
         var t = (attrs.match(/title="([^"]*)"/) || [])[1];
-        out.push({ id: cat + ':' + n, number: n,
-          title: t ? _text(t) : ('Episode ' + n), url: _epUrl(cat, epId, n) });
+        out.push({
+          id: cat + ':' + n,
+          number: n,
+          title: t ? _text(t) : ('Episode ' + n),
+          url: _epUrl(cat, epId, n)
+        });
       }
-      base.episodes = out;
-      if (!out.length) return base;
-      if (!opts || opts.skipStills !== false) return base;
-      return _malFromServers(first, watchRef).then(function (mal) {
-        base.malId = mal;
-        return _kitsuStills(mal, out.length).then(function (stills) {
-          for (var k = 0; k < out.length; k++) {
-            var still = stills && stills[out[k].number];
-            if (still) out[k].thumbnail = still;
-          }
-          return base;
-        }).catch(function () { return base; });
-      }).catch(function () { return base; });
-    }).catch(function () { return base; });
+      return { id: slug, title: title, url: slug, episodes: out };
+    });
   });
 }
 

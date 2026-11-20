@@ -7,11 +7,16 @@ Unified sources repository for EzMV, containing Stremio addons and client-side J
 ```
 ezmvSources/
 ├── sources.json       # Central manifest listing active Stremio addons and JS extractors
-├── router.js          # Dynamic route matcher and batch planner
+├── router.js          # Dynamic route matcher and sequential batch planner
 ├── hianime.js         # HiAnime (Anime, EzMV standard interface)
 ├── gogo.js            # AniGoGo (Anime, EzMV standard interface)
+├── anikoto.js         # AniKoto (Anime, EzMV standard interface)
+├── animecube.js       # AnimeCube (Donghua / Anime, EzMV standard interface)
 ├── hdhub.js           # HDHub4u (Movies/Series, EzMV standard interface)
 ├── 4khdhub.js         # 4K HDHub (4K Movies/Series, EzMV standard interface)
+├── archiveorg.js      # Internet Archive (Classic Movies, EzMV standard interface)
+├── supercartoons.js   # SuperCartoons (Vintage Cartoons, EzMV standard interface)
+├── moviezwap.js       # MoviezWap (Regional, Disabled)
 └── README.md          # Standard Scraper Specification and Mapping
 ```
 
@@ -35,90 +40,43 @@ The host client environment injects the following global functions into the JS c
 
 ---
 
-### 2. Standard Scraper Function Mapping
+### 2. Standard Scraper Execution Contract
 
-Every scraper `.js` script must expose the following top-level asynchronous functions:
+EzMV delegates all UI metadata (posters, descriptions, cast, ratings, and episode lists) to TMDB natively in the client. **The app never queries scrapers for metadata.**
+
+The **only** function invoked by the EzMV Dart orchestrator is `scrape(media)`:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                   Scraper Pipeline                     │
+│                   EzMV Scraper Model                   │
 │                                                        │
-│  getInfo()               -> Provider metadata          │
-│  search(query, page)     -> [{ id, title, url, ... }]  │
-│  getDetail(idOrUrl)      -> { title, episodes: [...] } │
-│  getVideoSources(epUrl)  -> [{ url, quality, ... }]    │
-│  scrape(media)           -> Unified end-to-end stream  │
+│  scrape(media)  ───────>  Promise<Array<StreamSource>> │
+│                                                        │
+│  (Internal steps: search -> match ep -> parse streams) │
 └────────────────────────────────────────────────────────┘
 ```
 
-#### A. `getInfo()`
-Returns metadata describing the scraper provider.
-- **Returns**: `Object`
+#### The `scrape(media)` Entrypoint
+- **Input Parameter (`media`)**:
   ```json
   {
-    "id": "gogo",
-    "name": "AniGoGo",
-    "lang": "en",
-    "baseUrl": "https://animex.one",
-    "logo": "https://animex.one/favicon.ico",
-    "type": "anime",
-    "version": "1.0.0"
+    "title": "Solo Leveling",
+    "year": 2024,
+    "mediaType": "tv",
+    "season": 1,
+    "episode": 1
   }
   ```
-
-#### B. `search(query, page)`
-Searches the provider's catalog.
-- **Parameters**:
-  - `query` (`string`): Movie/Series/Anime title to search.
-  - `page` (`number`, optional): Page number (defaults to 1).
-- **Returns**: `Promise<Array<SearchResult>>`
+- **Return Value**: `Promise<Array<StreamSource>>`
   ```json
   [
     {
-      "id": "one-piece-p8k27",
-      "title": "One Piece",
-      "url": "one-piece-p8k27",
-      "cover": "https://example.com/poster.jpg"
-    }
-  ]
-  ```
-
-#### C. `getDetail(idOrUrl)`
-Retrieves metadata and episode listings for a given media item.
-- **Parameters**:
-  - `idOrUrl` (`string`): The identifier or URL returned from `search()`.
-- **Returns**: `Promise<MediaDetail>`
-  ```json
-  {
-    "id": "one-piece-p8k27",
-    "title": "One Piece",
-    "cover": "https://example.com/poster.jpg",
-    "description": "Synopsis text...",
-    "type": "anime",
-    "episodes": [
-      {
-        "id": "one-piece-p8k27;1",
-        "number": 1,
-        "title": "Ep 1: I'm Luffy! The Man Who Will Become the Pirate King!",
-        "url": "one-piece-p8k27;1"
-      }
-    ]
-  }
-  ```
-
-#### D. `getVideoSources(episodeIdOrUrl)`
-Resolves direct playable stream links and subtitle tracks for a specific episode.
-- **Parameters**:
-  - `episodeIdOrUrl` (`string`): Episode ID or target URL from `getDetail().episodes`.
-- **Returns**: `Promise<Array<StreamSource>>`
-  ```json
-  [
-    {
-      "url": "https://example.com/master.m3u8",
+      "url": "https://stream.example.com/master.m3u8",
       "quality": "1080p",
       "headers": {
         "Referer": "https://player.example.com/"
       },
+      "size": "1.4 GB",
       "subtitles": [
         {
           "title": "English",
@@ -129,32 +87,8 @@ Resolves direct playable stream links and subtitle tracks for a specific episode
   ]
   ```
 
-#### E. `scrape(media)`
-High-level entrypoint invoked by the client media engine or batch router to resolve streams in one call.
-- **Parameters**:
-  - `media` (`Object`):
-    - `title` (`string`): Media title.
-    - `year` (`number`, optional): Release year.
-    - `mediaType` (`string`): `'movie'` or `'tv'`.
-    - `season` (`number`, optional): Season number (default 1).
-    - `episode` (`number`, optional): Episode number (default 1).
-- **Returns**: `Promise<Array<StreamSource>>`
-  Returns an array of playable `StreamSource` objects mapped to EzMV `shared_core` models.
-
----
-
-### 3. Upstream Origin Mappings
-
-| Origin Repo | Origin Function | EzMV Standard Function |
-| :--- | :--- | :--- |
-| **Zangetsu** | `getInfo()` | `getInfo()` |
-| **Zangetsu** | `search(query, page)` | `search(query, page)` |
-| **Zangetsu** | `getDetail(url)` | `getDetail(idOrUrl)` |
-| **Zangetsu** | `getVideoSources(url)` | `getVideoSources(episodeIdOrUrl)` |
-| **Miru** | `search(kw, page)` | `search(query, page)` |
-| **Miru** | `detail(url)` | `getDetail(idOrUrl)` *(alias `detail` retained for compatibility)* |
-| **Miru** | `watch(url)` | `getVideoSources(episodeIdOrUrl)` *(alias `watch` retained for compatibility)* |
-| **Miru** | `this.request(url, opt)` | `fetch(url, options)` |
+#### Internal Helper Pipeline
+Inside each scraper, modular helper functions (`search()`, `getDetail()`, `getVideoSources()`) are purely internal steps to resolve the final video links. They are stripped of all metadata/poster loops and only parse URLs needed to extract playback streams.
 
 ---
 
@@ -202,3 +136,21 @@ The `match` object controls when a source is triggered:
 - `genres`: e.g. `["anime"]` (triggered if movie has this genre)
 - `original_languages`: e.g. `["ja"]` (triggered if `originalLanguage` matches)
 - Empty or omitted `match`: Runs for all media.
+
+---
+
+## 5-Tier Batch Architecture
+
+Sources are organized across 5 execution tiers managed by `router.js`:
+
+| Batch | Focus | Sources Included |
+| :---: | :--- | :--- |
+| **1** | Anime Primary (Fast HLS) | `hianime` (P1), `gogo` (P2) |
+| **2** | Anime Secondary / Donghua | `animes_addon` (P1), `anikoto` (P1), `animecube` (P2) |
+| **3** | Movies & TV Primary (Direct HubCloud/Addon) | `hdhub_addon` (P1), `4khdhub` (P1), `hdhub_scraper` (P2) |
+| **4** | Movies & TV Secondary (Debrid / Aggregators) | `penguplay` (P1), `notorrent` (P2) |
+| **5** | Heavy Aggregators & Archives | `plaviohd` (P1), `archiveorg` (P2), `supercartoons` (P3), `moviezwap` (Disabled) |
+
+### Routing Behavior
+- **Anime**: Batches 1 & 2 run first. Once qualified streams are returned, the orchestrator terminates immediately, preventing HDHub from ever being called.
+- **Movies / Series**: The router filters out anime sources beforehand. The surviving batches are dynamically re-indexed to `1..N`, executing Batch 3 sources immediately as Batch 1 without waiting for empty anime passes.

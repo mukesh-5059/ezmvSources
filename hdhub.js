@@ -18,7 +18,7 @@ var UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
 
 // Only used when the domains list itself can't be reached; the live domain
 // always comes from DOMAINS_URL.
-var FALLBACK = 'https://new5.hdhub4u.cl';
+var FALLBACK = 'https://new15.hdhub4u.cl';
 
 var _dom = null;
 function _domains() {
@@ -77,56 +77,36 @@ function _cards(html, main) {
     if (seen[url] || /\/(category|page)\//i.test(url)) continue; seen[url] = 1;
     var rawTitle = (c.match(/<figcaption[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) ||
                     c.match(/<img[^>]+alt="([^"]+)"/i) || [])[1] || '';
-    var img = (c.match(/<img[^>]+(?:data-lazy-src|data-src|src)="([^"]+)"/i) || [])[1] || null;
     out.push({
-      id: url, title: _cleanTitle(rawTitle) || 'Untitled',
-      cover: img ? absUrl(img, main) : null, url: url, type: 'movie', sourceId: SOURCE_ID
+      id: url,
+      title: _cleanTitle(rawTitle) || 'Untitled',
+      url: url
     });
   }
   return out;
 }
 
-function getHome(opts) {
-  var rows = [
-    { title: 'Latest', path: '/' },
-    { title: 'Bollywood', path: '/category/bollywood-movies/' },
-    { title: 'Hollywood', path: '/category/hollywood-movies/' },
-    { title: 'Hindi Dubbed', path: '/category/hindi-dubbed/' },
-    { title: 'Web Series', path: '/category/web-series/' }
-  ];
-  return _domains().then(function (d) {
-    return Promise.all(rows.map(function (row) {
-      return _get(d.main + row.path, d.main + '/').then(function (html) {
-        return { title: row.title, items: _cards(html, d.main) };
-      }).catch(function () { return { title: row.title, items: [] }; });
-    }));
-  }).catch(function () { return []; });
-}
-
-// Search uses HDHub4u's Typesense proxy (no key needed; UA + referer only).
+// Search uses HDHub4u's Typesense proxy (no key needed; UA + referer + origin).
 function search(query, page, opts) {
   return _domains().then(function (d) {
     var u = 'https://search.pingora.fyi/collections/post/documents/search'
       + '?q=' + encodeURIComponent(query || '')
-      + '&query_by=post_title,category&query_by_weights=4,2'
+      + '&query_by=post_title,category,stars,director,imdb_id&query_by_weights=4,2,2,2,4'
       + '&sort_by=sort_by_date:desc&limit=20&highlight_fields=none&use_cache=true'
       + '&page=' + (page || 1);
-    return fetch(u, { headers: { 'User-Agent': UA, 'Referer': d.main + '/' } }).then(function (r) {
+    return fetch(u, { headers: { 'User-Agent': UA, 'Referer': d.main + '/', 'Origin': d.main } }).then(function (r) {
       var j = null; try { j = JSON.parse(r.body || 'null'); } catch (e) {}
       var hits = (j && j.hits) || [];
       var out = [];
       for (var i = 0; i < hits.length; i++) {
         var doc = (hits[i] && hits[i].document) || {};
         var raw = doc.permalink || doc.url; if (!raw) continue;
-        // Index permalinks are relative (or on a stale domain) — strip any host
-        // and rebase the path onto the CURRENT domain so getDetail can load it.
         var path = String(raw).replace(/^https?:\/\/[^/]+/, '');
         var url = absUrl(path, d.main);
-        var img = doc.post_thumbnail || doc.feature_img || doc.image || null;
         out.push({
-          id: url, title: _cleanTitle(doc.post_title || doc.title || ''),
-          cover: img ? absUrl(img, d.main) : null,
-          url: url, type: 'movie', sourceId: SOURCE_ID
+          id: url,
+          title: _cleanTitle(doc.post_title || doc.title || ''),
+          url: url
         });
       }
       if (out.length) return out;
@@ -147,30 +127,6 @@ function _isLink(h) {
 }
 
 // ── TMDB enrichment ──────────────────────────────────────────────────────────
-// Straight to TMDB: the keyless proxy this used to go through now answers 429
-// to everything. The host attaches the api_key to every api.themoviedb.org
-// request, so none is passed here.
-var _TMDB = 'https://api.themoviedb.org/3';
-var _STILL = 'https://image.tmdb.org/t/p/w300';
-var _POSTER = 'https://image.tmdb.org/t/p/w500';
-function _tj(url) {
-  return fetch(url, { headers: { 'User-Agent': UA }, timeoutMs: 7000 })
-    .then(function (r) { try { return JSON.parse(r.body || 'null'); } catch (e) { return null; } })
-    .catch(function () { return null; });
-}
-function _tmdbFind(title, year, isTv) {
-  var q = String(title || '').replace(/\bseason\b.*$/i, '').replace(/\(.*$/, '').trim();
-  return _tj(_TMDB + '/search/' + (isTv ? 'tv' : 'movie') + '?query=' + encodeURIComponent(q))
-    .then(function (j) {
-      var res = (j && j.results) || []; if (!res.length) return null;
-      if (year) for (var i = 0; i < res.length; i++) {
-        var dt = (res[i].first_air_date || res[i].release_date || '');
-        if (dt.slice(0, 4) === String(year)) return res[i].id;
-      }
-      return res[0].id;
-    });
-}
-
 function _movieEpisode(html, title) {
   var hrefs = [], m, re = /<a[^>]+href="([^"]+)"/gi;
   while ((m = re.exec(html)) !== null) { if (_isLink(m[1])) hrefs.push(m[1]); }
@@ -203,52 +159,20 @@ function getDetail(url, opts) {
   return _domains().then(function (d) {
     return fetch(url, { headers: { 'User-Agent': UA, 'Cookie': 'xla=s4t', 'Referer': d.main + '/' } }).then(function (r) {
       var html = r.body || '';
-      // Title lives in the page-title's <span class="material-text"> — the
-      // leading <i class="material-icons"> glyph must NOT be scraped (it renders
-      // as a junk leading letter).
       var rawTitle = (html.match(/<span class="material-text">([\s\S]*?)<\/span>/i) ||
                       html.match(/<meta property="og:title" content="([^"]+)"/i) ||
                       html.match(/<h1[^>]*class="[^"]*page-title[^"]*"[^>]*>([\s\S]*?)<\/h1>/i) || [])[1] || 'Untitled';
       var title = _cleanTitle(rawTitle);
-      var poster = (html.match(/<meta property="og:image" content="([^"]+)"/i) || [])[1] || null;
-      var description = htmlText((html.match(/<meta name="description" content="([^"]+)"/i) || [])[1] || '');
-      var year = (htmlText(rawTitle).match(/\((19|20)\d{2}\)/) || [])[0];
-      year = year ? year.replace(/[()]/g, '') : ((html.match(/\b(19|20)\d{2}\b/) || [])[0] || null);
       var isSeries = /\bseason\b|\bS0?\d|web[- ]?series|episode\s*0*\d/i.test(htmlText(rawTitle)) ||
         ((html.match(/episode\s*0*\d/gi) || []).length > 1);
       var episodes = isSeries ? _seriesEpisodes(html) : _movieEpisode(html, title);
 
-      var base = {
-        id: url, title: title, cover: poster, url: url, description: description,
-        status: 'unknown', genres: [], studios: [], type: 'movie', sourceId: SOURCE_ID,
-        episodes: episodes, year: year, subCount: episodes.length, dubCount: 0
+      return {
+        id: url,
+        title: title,
+        url: url,
+        episodes: episodes
       };
-
-      return _tmdbFind(title, year, isSeries).then(function (id) {
-        if (!id) return base;
-        // TMDB id drives Simkl movie/series tracking in the app.
-        base.tmdbId = parseInt(id, 10);
-        base.tmdbIsTv = !!isSeries;
-        var jobs = [_tj(_TMDB + '/' + (isSeries ? 'tv' : 'movie') + '/' + id)];
-        if (isSeries) jobs.push(_tj(_TMDB + '/tv/' + id + '/season/1').then(function (j) { return { eps: (j && j.episodes) || [] }; }));
-        return Promise.all(jobs).then(function (all) {
-          var info = all[0];
-          if (info) {
-            if (info.overview) base.description = info.overview;
-            if (info.genres && info.genres.length) base.genres = info.genres.map(function (g) { return g.name; });
-            if (info.poster_path) base.cover = _POSTER + info.poster_path;
-          }
-          var meta = {};
-          if (all[1]) for (var k = 0; k < all[1].eps.length; k++) { var ep = all[1].eps[k]; meta[ep.episode_number] = ep; }
-          base.episodes = episodes.map(function (e) {
-            var md = meta[e.number]; if (!md) return e;
-            return { id: e.id, number: e.number, url: e.url,
-              title: 'Episode ' + e.number + ' - ' + (md.name || ('Episode ' + e.number)),
-              thumbnail: md.still_path ? (_STILL + md.still_path) : null, date: md.air_date || null };
-          });
-          return base;
-        });
-      }).catch(function () { return base; });
     });
   });
 }

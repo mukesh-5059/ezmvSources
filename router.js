@@ -46,8 +46,9 @@ function routeMedia(media, config) {
   extractors.forEach(function(s) { addSource(s, 'extractor'); });
 
   var batchNums = Object.keys(batchMap).map(Number).sort(function(a, b) { return a - b; });
-  return batchNums.map(function(num) {
+  return batchNums.map(function(num, idx) {
     var b = batchMap[num];
+    b.batchNumber = idx + 1;
     b.stremio_addons.sort(function(a, b) { return (a.priority || 10) - (b.priority || 10); });
     b.js_extractors.sort(function(a, b) { return (a.priority || 10) - (b.priority || 10); });
     return b;

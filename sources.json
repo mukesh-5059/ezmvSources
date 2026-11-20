@@ -6,7 +6,7 @@
       "name": "HDHub (Addon)",
       "manifest_url": "https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjEwODBwLDcyMHAsNDgwcCIsInNvcnQiOiJkZXNjIiwiY2F0YWxvZ3MiOiIifQ/manifest.json",
       "enabled": true,
-      "batch": 1,
+      "batch": 3,
       "priority": 1,
       "match": {}
     },
@@ -15,7 +15,7 @@
       "name": "PenguPlay (Addon)",
       "manifest_url": "https://pengu.uk/%7B%22auth_token%22%3A%22p30MBIC3MSN4Dbh5ZGDeVyGUzMoFFJUBEL4FNv36DWY%22%7D/manifest.json",
       "enabled": true,
-      "batch": 2,
+      "batch": 4,
       "priority": 1,
       "match": {}
     },
@@ -24,7 +24,7 @@
       "name": "PlavioHD (Addon)",
       "manifest_url": "https://hd.plavio.site/c/eyJwcm92aWRlcnMiOlsiSERIdWI0dSIsIkNpbmV6byIsIlZlZ2Ftb3ZpZXMiLCJNb3ZpZXNIdW50IiwiNEtIREh1YiIsIk9uZVRvdWNoVFYiLCJWaWRyb2NrIiwiU3BhY2VEb20iLCJXYXkyTW92aWVzIiwiRmxpeE5lc3QiLCJIREh1YiIsIk1vdmllczR1IiwiQ05DVmVyc2UiLCJNb3ZpZUJveCIsIkRlZXBGbGl4Il0sInFzZXQiOlsiMTA4MHAiLCI3MjBwIiwiNDgwcCIsIjM2MHAiLCJIRFRTIiwiQ0FNIiwiSERSaXAiXSwiY3R5cGVzIjpbIm1vdmllIiwid2Vic2VyaWVzIiwidHYiLCJhbmltZSJdLCJsYW5nUGljayI6WyJIaW5kaSIsIkVuZ2xpc2giLCJQdW5qYWJpIiwiQmVuZ2FsaSIsIlRhbWlsIiwiVGVsdWd1IiwiTWFsYXlhbGFtIiwiS2FubmFkYSIsIk1hcmF0aGkiLCJEdWFsIEF1ZGlvIiwiTXVsdGkgQXVkaW8iLCJBcmFiaWMiLCJTcGFuaXNoIiwiRnJlbmNoIiwiR2VybWFuIiwiSXRhbGlhbiIsIlBvcnR1Z3Vlc2UiLCJSdXNzaWFuIiwiSmFwYW5lc2UiLCJJbmRvbmVzaWFuIiwiRHV0Y2giLCJIdW5nYXJpYW4iXSwic29ydE5ldyI6InNpemVRdWFsaXR5IiwiaW5jSGRyIjp0cnVlLCJpbmNIZXZjIjp0cnVlLCJpbmNEdWFsIjp0cnVlLCJpbmNNdWx0aSI6dHJ1ZX0/manifest.json",
       "enabled": true,
-      "batch": 3,
+      "batch": 5,
       "priority": 1,
       "match": {}
     },
@@ -34,8 +34,20 @@
       "manifest_url": "https://addon.notorrent2.workers.dev/manifest.json",
       "enabled": true,
       "batch": 4,
-      "priority": 1,
+      "priority": 2,
       "match": {}
+    },
+    {
+      "id": "animes_addon",
+      "name": "AnimES (Addon)",
+      "manifest_url": "https://pigamer37.alwaysdata.net/manifest.json",
+      "enabled": true,
+      "batch": 2,
+      "priority": 1,
+      "match": {
+        "genres": ["anime", "animation"],
+        "original_languages": ["ja"]
+      }
     }
   ],
   "js_extractors": [
@@ -71,7 +83,7 @@
       "script_url": "hdhub.js",
       "interface": "ezmv",
       "enabled": true,
-      "batch": 1,
+      "batch": 3,
       "priority": 2,
       "match": {}
     },
@@ -81,9 +93,69 @@
       "script_url": "4khdhub.js",
       "interface": "ezmv",
       "enabled": true,
-      "batch": 1,
-      "priority": 3,
+      "batch": 3,
+      "priority": 1,
       "match": {}
+    },
+    {
+      "id": "anikoto",
+      "name": "AniKoto (Scraper)",
+      "script_url": "anikoto.js",
+      "interface": "ezmv",
+      "enabled": true,
+      "batch": 2,
+      "priority": 1,
+      "match": {
+        "genres": ["anime", "animation"],
+        "original_languages": ["ja"]
+      }
+    },
+    {
+      "id": "animecube",
+      "name": "AnimeCube (Donghua / Anime)",
+      "script_url": "animecube.js",
+      "interface": "ezmv",
+      "enabled": true,
+      "batch": 2,
+      "priority": 2,
+      "match": {
+        "genres": ["anime", "animation"],
+        "original_languages": ["zh", "ja"]
+      }
+    },
+    {
+      "id": "moviezwap",
+      "name": "MoviezWap (Regional)",
+      "script_url": "moviezwap.js",
+      "interface": "ezmv",
+      "enabled": false,
+      "batch": 5,
+      "priority": 4,
+      "match": {
+        "original_languages": ["te", "ta", "ml", "kn", "hi"]
+      }
+    },
+    {
+      "id": "archiveorg",
+      "name": "Internet Archive (Classic Movies)",
+      "script_url": "archiveorg.js",
+      "interface": "ezmv",
+      "enabled": true,
+      "batch": 5,
+      "priority": 2,
+      "match": {}
+    },
+    {
+      "id": "supercartoons",
+      "name": "SuperCartoons (Vintage Cartoons)",
+      "script_url": "supercartoons.js",
+      "interface": "ezmv",
+      "enabled": true,
+      "batch": 5,
+      "priority": 3,
+      "match": {
+        "genres": ["animation", "family", "comedy"]
+      }
     }
   ]
 }
